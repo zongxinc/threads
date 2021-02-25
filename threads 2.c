@@ -3,10 +3,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <setjmp.h>
-#include <sys/types.h>
-#include <signal.h>
-#include <unistd.h>
-#include <stdio.h>
 
 /* You can support more threads. At least support this many. */
 #define MAX_THREADS 128
@@ -44,29 +40,30 @@ enum thread_status
 struct thread_control_block {
 	pthread_t threadID;
 	jmp_buf current_buf;
-	unsigned long* stack; //look up pointer arithemitic
+	unnsigned long* stack; //look up pointer arithemitic
 	enum thread_status status;
 };
 //
 struct control_threads {
 	int current;
+	int active;
 	struct thread_control_block mythreads[MAX_THREADS];
 	int t_num;
-};
+}
 
 struct control_threads mycontrol;
 
 static void schedule(int signal)
 {
-	setjmp(mycontrol.mythreads[mycontrol.current].current_buf);
-	mycontrol.mythreads[mycontrol.current].status = TS_READY;
-	mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
-	while(mycontrol.mythreads[mycontrol.current].status != TS_READY)
+	setjmp(mycontrol->mythreads[mycontrol->current % MAX_THREADS]->current_buf);
+	mycontrol->mythreads[mycontrol->current % MAX_THREADS]->status = TS_READY;
+	mycontrol->current++;
+	while(mycontrol->mythread[mycontrol->current % MAX_THREADS]->status != TS_READY)
 	{
-		mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
+		mycontrol->current++;
 	}
-	mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
-	longjmp(mycontrol.mythreads[mycontrol.current].current_buf, 1);
+	mycontrol->mythreads[mycontrol->current % MAX_THREADS]->status = TS_RUNNING;
+	longjmp(mycontrol->mythreads[mycontrol->current % MAX_THREADS]->current_buf, 1);
 	/* TODO: implement your round-robin scheduler 
 	 * 1. Use setjmp() to update your currently-active thread's jmp_buf
 	 *    You DON'T need to manually modify registers here.
@@ -77,29 +74,25 @@ static void schedule(int signal)
 
 static void scheduler_init()
 {
-	mycontrol.current = 0;
-	//struct thread_control_block* mythread = malloc(sizeof(struct thread_control_block));
-	mycontrol.t_num = 0;
-	
-	for (int i = 0; i < MAX_THREADS; i++)
-	{
-		mycontrol.mythreads[i].status = TS_EXITED;
-		mycontrol.mythreads[i].threadID = i;
-	}
+	mycontrol -> current = 0;
+	mycontrol -> active = 0;
+	mycontrol -> mythreads = malloc(MAX_THREADS * sizeof(struct thread_control_block));
+	mycontrol -> t_num = 0; 
 
-	mycontrol.mythreads[0].stack = NULL;//malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
-	mycontrol.mythreads[0].status = TS_RUNNING;
+	struct thread_control_block *tcb = malloc(sizeof(struct thread_control_block));
+
+	tcb -> stack = malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
+	tcb -> status = TS_READY;
 	// unsigned long *exit_ptr = (unsigned long*)(tcb -> stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
 	// *exit_ptr = (unsigned long) pthread_exit
-	mycontrol.mythreads[0].threadID = 0;
-	mycontrol.t_num++;
-	setjmp(mycontrol.mythreads[0].current_buf);
+	tcb -> threadID = pthread_self();
+	setjmp(tcb->current_buf);
 
 	struct sigaction act;
 	act.sa_handler = schedule;
 	act.sa_flags = SA_NODEFER;
-	sigaction(SIGALRM, &act, NULL);
-	ualarm(50, 50);
+	sigaction(SIGALRM, &act, NULL)
+	ualarm(50, 50)
 	/* TODO: do everything that is needed to initialize your scheduler. For example:
 	 * - Allocate/initialize global threading data structures
 	 * - Create a TCB for the main thread. Note: This is less complicated
@@ -110,7 +103,7 @@ static void scheduler_init()
 	 */
 }
 
-int thread_count = 0;
+int thread_count = 0
 int pthread_create(
 	pthread_t *thread, const pthread_attr_t *attr,
 	void *(*start_routine) (void *), void *arg)
@@ -122,18 +115,26 @@ int pthread_create(
 		is_first_call = false;
 		scheduler_init();
 	}
-	setjmp(mycontrol.mythreads[mycontrol.t_num].current_buf);
-	//mycontrol.mythreads[mycontrol.t_num] = (struct thread_control_block*)malloc(sizeof(struct thread_control_block));
-	mycontrol.mythreads[mycontrol.t_num].stack = (unsigned long*)malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
-	mycontrol.mythreads[mycontrol.t_num].status = TS_READY;
-	unsigned long *exit_ptr = (unsigned long*)(mycontrol.mythreads[mycontrol.t_num].stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
-	*exit_ptr = (unsigned long) pthread_exit;
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_RSP] = ptr_mangle((unsigned long)exit);
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_R12] = (unsigned long)start_routine;
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
-	printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(mycontrol.mythreads[mycontrol.t_num].current_buf -> __jmpbuf[JB_R13]), mycontrol.t_num);
-	mycontrol.t_num += 1;
+	if (thread_count > MAX_THREADS)
+	{
+		printf("too many threads");
+		return 1;
+	}
+	struct thread_control_block *tcb = malloc(sizeof(struct thread_control_block));
+
+	tcb -> stack = (unsigned long*)malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
+	tcb -> status = TS_READY;
+	unsigned long *exit_ptr = (unsigned long*)(tcb -> stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
+	*exit_ptr = (unsigned long) pthread_exit
+	tcb -> threadID = pthread_self();
+	tcb -> current_buf._jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
+	tcb -> current_buf._jmpbuf[JB_RSP] = ptr_mangle((unsigned long)exit);
+	tcb -> current_buf._jmpbuf[JB_R12] = (unsigned long)start_routine;
+	tcb -> current_buf._jmpbuf[JB_R13] = (unsigned long)arg;
+	setjmp(tcb->current_buf);
+
+	mycontrol -> mythreads[mycontrol -> t_num] = tcb; //assigned correct?
+	mycontrol -> t_num += 1;
 
 
 
@@ -184,8 +185,7 @@ int pthread_create(
 
 void pthread_exit(void *value_ptr)
 {
-	free(mycontrol.mythreads[mycontrol.current].stack);
-	mycontrol.mythreads[mycontrol.current].status = TS_EXITED;
+	free(mycontrol->mythreads[mycontrol->current])
 	// ？？？？？
 		/* TODO: Exit the current thread instead of exiting the entire process.
 	 * Hints:
@@ -205,7 +205,7 @@ pthread_t pthread_self(void)
 	 * Hint: this function can be implemented in one line, by returning
 	 * a specific variable instead of -1.
 	 */
-	return mycontrol.mythreads[mycontrol.current].threadID;
+	return -1;
 }
 
 /* Don't implement main in this file!
