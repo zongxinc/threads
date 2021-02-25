@@ -4,7 +4,7 @@ override CFLAGS := -Wall -Werror -std=gnu99 -Og -g $(CFLAGS) -I.
 threads.o: threads.c ec440threads.h
 
 # Automatically discover all test files
-test_c_files=$(shell find tests -type f -name '*.c')
+test_c_files=$(shell find tests -not -path '*/\.*' -type f -name '*.c')
 test_o_files=$(test_c_files:.c=.o)
 test_files=$(test_c_files:.c=)
 

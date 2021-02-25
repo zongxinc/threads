@@ -2,6 +2,11 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <setjmp.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <unistd.h>
+#include <stdio.h>
 
 /* You can support more threads. At least support this many. */
 #define MAX_THREADS 128
@@ -21,7 +26,7 @@
 #define JB_R13 3
 #define JB_R14 4
 #define JB_R15 5
-#define JB_RSP 6
+#define JB_RSP 6 //exit
 #define JB_PC 7
 
 /* thread_status identifies the current state of a thread. You can add, rename,
@@ -37,15 +42,31 @@ enum thread_status
  * need one of this per thread.
  */
 struct thread_control_block {
-	/* TODO: add a thread ID */
-	/* TODO: add information about its stack */
-	/* TODO: add information about its registers */
-	/* TODO: add information about the status (e.g., use enum thread_status) */
-	/* Add other information you need to manage this thread */
+	pthread_t threadID;
+	jmp_buf current_buf;
+	unsigned long* stack; //look up pointer arithemitic
+	enum thread_status status;
 };
+//
+struct control_threads {
+	int current;
+	struct thread_control_block mythreads[MAX_THREADS];
+	int t_num;
+};
+
+struct control_threads mycontrol;
 
 static void schedule(int signal)
 {
+	setjmp(mycontrol.mythreads[mycontrol.current].current_buf);
+	mycontrol.mythreads[mycontrol.current].status = TS_READY;
+	mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
+	while(mycontrol.mythreads[mycontrol.current].status != TS_READY)
+	{
+		mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
+	}
+	mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
+	longjmp(mycontrol.mythreads[mycontrol.current].current_buf, 1);
 	/* TODO: implement your round-robin scheduler 
 	 * 1. Use setjmp() to update your currently-active thread's jmp_buf
 	 *    You DON'T need to manually modify registers here.
@@ -56,6 +77,29 @@ static void schedule(int signal)
 
 static void scheduler_init()
 {
+	mycontrol.current = 0;
+	//struct control_threads* mythread = malloc(MAX_THREADS * sizeof(struct thread_control_block));
+	mycontrol.t_num = 0;
+	//mycontrol.mythreads = mythread;
+	for (int i = 0; i < MAX_THREADS; i++)
+	{
+		mycontrol.mythreads[i].status = TS_EXITED;
+		mycontrol.mythreads[i].threadID = i;
+	}
+
+	mycontrol.mythreads[0].stack = malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
+	mycontrol.mythreads[0].status = TS_RUNNING;
+	// unsigned long *exit_ptr = (unsigned long*)(tcb -> stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
+	// *exit_ptr = (unsigned long) pthread_exit
+	mycontrol.mythreads[0].threadID = 0;
+	mycontrol.t_num++;
+	setjmp(mycontrol.mythreads[0].current_buf);
+
+	struct sigaction act;
+	act.sa_handler = schedule;
+	act.sa_flags = SA_NODEFER;
+	sigaction(SIGALRM, &act, NULL);
+	ualarm(50, 50);
 	/* TODO: do everything that is needed to initialize your scheduler. For example:
 	 * - Allocate/initialize global threading data structures
 	 * - Create a TCB for the main thread. Note: This is less complicated
@@ -66,6 +110,7 @@ static void scheduler_init()
 	 */
 }
 
+int thread_count = 0;
 int pthread_create(
 	pthread_t *thread, const pthread_attr_t *attr,
 	void *(*start_routine) (void *), void *arg)
@@ -77,6 +122,23 @@ int pthread_create(
 		is_first_call = false;
 		scheduler_init();
 	}
+
+	setjmp(mycontrol.mythreads[mycontrol.t_num].current_buf);
+
+	mycontrol.mythreads[mycontrol.t_num].stack = (unsigned long*)malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
+	mycontrol.mythreads[mycontrol.t_num].status = TS_READY;
+	unsigned long *exit_ptr = (unsigned long*)(mycontrol.mythreads[mycontrol.t_num].stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
+	*exit_ptr = (unsigned long) pthread_exit;
+	mycontrol.mythreads[mycontrol.t_num].current_buf -> __jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
+	mycontrol.mythreads[mycontrol.t_num].current_buf -> __jmpbuf[JB_RSP] = ptr_mangle((unsigned long)exit);
+	mycontrol.mythreads[mycontrol.t_num].current_buf -> __jmpbuf[JB_R12] = (unsigned long)start_routine;
+	mycontrol.mythreads[mycontrol.t_num].current_buf -> __jmpbuf[JB_R13] = (unsigned long)arg;
+	printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(mycontrol.mythreads[mycontrol.t_num].current_buf -> __jmpbuf[JB_R13]), mycontrol.t_num);
+	mycontrol.t_num += 1;
+
+
+
+
 
 	/* TODO: Return 0 on successful thread creation, non-zero for an error.
 	 *       Be sure to set *thread on success.
@@ -123,7 +185,10 @@ int pthread_create(
 
 void pthread_exit(void *value_ptr)
 {
-	/* TODO: Exit the current thread instead of exiting the entire process.
+	free(mycontrol.mythreads[mycontrol.current].stack);
+	mycontrol.mythreads[mycontrol.current].status = TS_EXITED;
+	// ？？？？？
+		/* TODO: Exit the current thread instead of exiting the entire process.
 	 * Hints:
 	 * - Release all resources for the current thread. CAREFUL though.
 	 *   If you free() the currently-in-use stack then do something like
@@ -136,11 +201,12 @@ void pthread_exit(void *value_ptr)
 
 pthread_t pthread_self(void)
 {
+
 	/* TODO: Return the current thread instead of -1
 	 * Hint: this function can be implemented in one line, by returning
 	 * a specific variable instead of -1.
 	 */
-	return -1;
+	return mycontrol.mythreads[mycontrol.current].threadID;
 }
 
 /* Don't implement main in this file!
