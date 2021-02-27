@@ -122,17 +122,19 @@ int pthread_create(
 		is_first_call = false;
 		scheduler_init();
 	}
-	setjmp(mycontrol.mythreads[mycontrol.t_num].current_buf);
-	//mycontrol.mythreads[mycontrol.t_num] = (struct thread_control_block*)malloc(sizeof(struct thread_control_block));
-	mycontrol.mythreads[mycontrol.t_num].stack = (unsigned long*)malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
-	mycontrol.mythreads[mycontrol.t_num].status = TS_READY;
-	unsigned long *exit_ptr = (unsigned long*)(mycontrol.mythreads[mycontrol.t_num].stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
+	struct thread_control_block new_thread;
+	setjmp(new_thread.current_buf);
+	new_thread.stack = (unsigned long*)malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
+	new_thread.status = TS_READY;
+	unsigned long *exit_ptr = (unsigned long*)(new_thread.stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
 	*exit_ptr = (unsigned long) pthread_exit;
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_RSP] = ptr_mangle((unsigned long)exit);
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_R12] = (unsigned long)start_routine;
-	mycontrol.mythreads[mycontrol.t_num].current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
-	printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(mycontrol.mythreads[mycontrol.t_num].current_buf -> __jmpbuf[JB_R13]), mycontrol.t_num);
+	new_thread.current_buf[0].__jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
+	new_thread.current_buf[0].__jmpbuf[JB_RSP] = ptr_mangle((unsigned long)exit_ptr);
+	new_thread.current_buf[0].__jmpbuf[JB_R12] = (unsigned long)start_routine;
+	new_thread.current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
+	new_thread.threadID = mycontrol.t_num;
+	printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(new_thread.current_buf -> __jmpbuf[JB_R13]), mycontrol.t_num);
+	mycontrol.mythreads[mycontrol.t_num] = new_thread;
 	mycontrol.t_num += 1;
 
 
