@@ -42,7 +42,7 @@ enum thread_status
  * need one of this per thread.
  */
 struct thread_control_block {
-	pthread_t threadID;
+	int threadID;
 	jmp_buf current_buf;
 	unsigned long* stack; //look up pointer arithemitic
 	enum thread_status status;
@@ -95,6 +95,7 @@ static void scheduler_init()
 	mycontrol.t_num++;
 	setjmp(mycontrol.mythreads[0].current_buf);
 
+
 	struct sigaction act;
 	act.sa_handler = schedule;
 	act.sa_flags = SA_NODEFER;
@@ -122,10 +123,13 @@ int pthread_create(
 		is_first_call = false;
 		scheduler_init();
 	}
+	printf("%s, %d\n", "main done", mycontrol.t_num);
 	struct thread_control_block new_thread;
 	setjmp(new_thread.current_buf);
+
 	new_thread.stack = (unsigned long*)malloc(THREAD_STACK_SIZE/* sizeof(unsigned long)*/);
-	new_thread.status = TS_READY;
+	
+
 	unsigned long *exit_ptr = (unsigned long*)(new_thread.stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
 	*exit_ptr = (unsigned long) pthread_exit;
 	new_thread.current_buf[0].__jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
@@ -133,9 +137,12 @@ int pthread_create(
 	new_thread.current_buf[0].__jmpbuf[JB_R12] = (unsigned long)start_routine;
 	new_thread.current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
 	new_thread.threadID = mycontrol.t_num;
-	printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(new_thread.current_buf -> __jmpbuf[JB_R13]), mycontrol.t_num);
+	printf("%s, %d\n", "new thread id assigned", new_thread.threadID);
+	// printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_R13]), mycontrol.t_num);
 	mycontrol.mythreads[mycontrol.t_num] = new_thread;
+	
 	mycontrol.t_num += 1;
+	new_thread.status = TS_READY;
 
 
 
