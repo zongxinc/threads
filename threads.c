@@ -58,15 +58,22 @@ struct control_threads mycontrol;
 
 static void schedule(int signal)
 {
-	setjmp(mycontrol.mythreads[mycontrol.current].current_buf);
-	mycontrol.mythreads[mycontrol.current].status = TS_READY;
-	mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
-	while(mycontrol.mythreads[mycontrol.current].status != TS_READY)
+	if (setjmp(mycontrol.mythreads[mycontrol.current].current_buf) == 0)
 	{
+		// printf("%s, %d\n", "setjmp current thread", mycontrol.current);
+		mycontrol.mythreads[mycontrol.current].status = TS_READY;
 		mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
+		while(mycontrol.mythreads[mycontrol.current].status != TS_READY)
+		{
+			mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
+		}
+		mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
+		longjmp(mycontrol.mythreads[mycontrol.current].current_buf, 1);
 	}
-	mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
-	longjmp(mycontrol.mythreads[mycontrol.current].current_buf, 1);
+	else {
+		mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
+	}
+	
 	/* TODO: implement your round-robin scheduler 
 	 * 1. Use setjmp() to update your currently-active thread's jmp_buf
 	 *    You DON'T need to manually modify registers here.
@@ -123,7 +130,7 @@ int pthread_create(
 		is_first_call = false;
 		scheduler_init();
 	}
-	printf("%s, %d\n", "main done", mycontrol.t_num);
+	// printf("%s, %d\n", "main done", mycontrol.t_num);
 	struct thread_control_block new_thread;
 	setjmp(new_thread.current_buf);
 
@@ -137,7 +144,7 @@ int pthread_create(
 	new_thread.current_buf[0].__jmpbuf[JB_R12] = (unsigned long)start_routine;
 	new_thread.current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
 	new_thread.threadID = mycontrol.t_num;
-	printf("%s, %d\n", "new thread id assigned", new_thread.threadID);
+	// printf("%s, %d\n", "new thread id assigned", new_thread.threadID);
 	// printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_R13]), mycontrol.t_num);
 	mycontrol.mythreads[mycontrol.t_num] = new_thread;
 	
