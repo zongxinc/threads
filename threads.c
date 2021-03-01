@@ -58,19 +58,24 @@ struct control_threads mycontrol;
 
 static void schedule(int signal)
 {
+	// printf("%s\n", "mycontrol.current!!!!!!!!!!!!!!!!!!!!!!!!");
 	if (setjmp(mycontrol.mythreads[mycontrol.current].current_buf) == 0)
 	{
 		// printf("%s, %d\n", "setjmp current thread", mycontrol.current);
 		mycontrol.mythreads[mycontrol.current].status = TS_READY;
 		mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
+		// printf("%d\n", mycontrol.current);
 		while(mycontrol.mythreads[mycontrol.current].status != TS_READY)
 		{
 			mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
+
 		}
+		// printf("%s, %d\n", "next one ready is ", mycontrol.current);
 		mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
 		longjmp(mycontrol.mythreads[mycontrol.current].current_buf, 1);
 	}
 	else {
+		// printf("%s\n", "setjmp error");
 		mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
 	}
 	
@@ -103,11 +108,12 @@ static void scheduler_init()
 	setjmp(mycontrol.mythreads[0].current_buf);
 
 
-	struct sigaction act;
+	struct sigaction act = {{0}};
 	act.sa_handler = schedule;
+	sigemptyset(&act.sa_mask);
 	act.sa_flags = SA_NODEFER;
 	sigaction(SIGALRM, &act, NULL);
-	ualarm(50, 50);
+	ualarm(SCHEDULER_INTERVAL_USECS, SCHEDULER_INTERVAL_USECS);
 	/* TODO: do everything that is needed to initialize your scheduler. For example:
 	 * - Allocate/initialize global threading data structures
 	 * - Create a TCB for the main thread. Note: This is less complicated
@@ -145,11 +151,11 @@ int pthread_create(
 	new_thread.current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
 	new_thread.threadID = mycontrol.t_num;
 	// printf("%s, %d\n", "new thread id assigned", new_thread.threadID);
+	new_thread.status = TS_READY;
 	// printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_R13]), mycontrol.t_num);
 	mycontrol.mythreads[mycontrol.t_num] = new_thread;
-	
 	mycontrol.t_num += 1;
-	new_thread.status = TS_READY;
+	
 
 
 
@@ -200,7 +206,7 @@ int pthread_create(
 
 void pthread_exit(void *value_ptr)
 {
-	free(mycontrol.mythreads[mycontrol.current].stack);
+	// free(mycontrol.mythreads[mycontrol.current].stack);
 	mycontrol.mythreads[mycontrol.current].status = TS_EXITED;
 	// ？？？？？
 		/* TODO: Exit the current thread instead of exiting the entire process.
@@ -221,6 +227,7 @@ pthread_t pthread_self(void)
 	 * Hint: this function can be implemented in one line, by returning
 	 * a specific variable instead of -1.
 	 */
+	// printf("%s, %d\n", "my id is ", mycontrol.mythreads[mycontrol.current].threadID);
 	return mycontrol.mythreads[mycontrol.current].threadID;
 }
 
