@@ -205,7 +205,7 @@ int pthread_create(
 	 * our case). The address to return to after finishing start_routine
 	 * should be the first thing you push on your stack.
 	 */
-	return -1;
+	return 0;
 }
 
 void pthread_exit(void *value_ptr)
@@ -221,6 +221,13 @@ void pthread_exit(void *value_ptr)
 	 *   can happen.
 	 * - Update the thread's status to indicate that it has exited
 	 */
+	// for (int i = 0; i < MAX_THREADS; i++)
+	// {
+	// 	if (mycontrol.mythreads[i].status != TS_EXITED)
+	// 		break;
+	// 	if (i == MAX_THREADS - 1)
+	// 		exit(0);
+	// }
 	exit(0);
 }
 
