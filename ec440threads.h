@@ -4,20 +4,20 @@
  * This file is derived from code provided by Prof. Egele
  */
 
-static unsigned long int ptr_demangle(unsigned long int p)
-{
-    unsigned long int ret;
+// static unsigned long int ptr_demangle(unsigned long int p)
+// {
+//     unsigned long int ret;
 
-    asm("movq %1, %%rax;\n"
-        "rorq $0x11, %%rax;"
-        "xorq %%fs:0x30, %%rax;"
-        "movq %%rax, %0;"
-    : "=r"(ret)
-    : "r"(p)
-    : "%rax"
-    );
-    return ret;
-}
+//     asm("movq %1, %%rax;\n"
+//         "rorq $0x11, %%rax;"
+//         "xorq %%fs:0x30, %%rax;"
+//         "movq %%rax, %0;"
+//     : "=r"(ret)
+//     : "r"(p)
+//     : "%rax"
+//     );
+//     return ret;
+// }
 
 static unsigned long int ptr_mangle(unsigned long int p)
 {

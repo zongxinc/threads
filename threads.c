@@ -148,16 +148,16 @@ int pthread_create(
 	unsigned long *exit_ptr = (unsigned long*)(new_thread.stack + (THREAD_STACK_SIZE/sizeof(unsigned long) - 1));
 	unsigned long exit_add = (uintptr_t) &pthread_exit;
 	memcpy(exit_ptr, &exit_add, sizeof(exit_add));
-	printf("%p\n", pthread_exit);
-	printf("%lx\n", exit_add);
+	// printf("%p\n", pthread_exit);
+	// printf("%lx\n", exit_add);
 	// *exit_ptr = (unsigned long) pthread_exit;
 	new_thread.current_buf[0].__jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
-	new_thread.current_buf[0].__jmpbuf[JB_RSP] = ptr_mangle(((unsigned long)exit_ptr) - 8);
+	new_thread.current_buf[0].__jmpbuf[JB_RSP] = ptr_mangle(((unsigned long)exit_ptr));
 	new_thread.current_buf[0].__jmpbuf[JB_R12] = (unsigned long)start_routine;
-	printf("%lx\n", *(unsigned long*) ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_RSP]));
+	// printf("%lx\n", *(unsigned long*) ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_RSP]));
 	new_thread.current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
 	new_thread.threadID = mycontrol.t_num;
-	printf("%s, %d\n", "new thread id assigned", new_thread.threadID);
+	// printf("%s, %d\n", "new thread id assigned", new_thread.threadID);
 	new_thread.status = TS_READY;
 	// printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_R13]), mycontrol.t_num);
 	mycontrol.mythreads[mycontrol.t_num] = new_thread;
@@ -213,6 +213,22 @@ void pthread_exit(void *value_ptr)
 	// free(mycontrol.mythreads[mycontrol.current].stack);
 	mycontrol.mythreads[mycontrol.current].status = TS_EXITED;
 	// printf("%s\n", "exited!!!!!!");
+	bool next = false;
+	for (int i = 0; i < MAX_THREADS; i++)
+	{
+		if (mycontrol.mythreads[i].status != TS_EXITED)
+			break;
+		if (i == MAX_THREADS - 1)
+			next = true;
+	}
+	if (next == false)
+		schedule(0);
+	else
+		exit(0);
+	__builtin_unreachable();
+	// printf("%s\n", "exited!!!!!!");
+	// __builtin_unreachable();
+	// printf("%s\n", "exited!!!!!!");
 		/* TODO: Exit the current thread instead of exiting the entire process.
 	 * Hints:
 	 * - Release all resources for the current thread. CAREFUL though.
@@ -228,7 +244,21 @@ void pthread_exit(void *value_ptr)
 	// 	if (i == MAX_THREADS - 1)
 	// 		exit(0);
 	// }
-	exit(0);
+	// if (mycontrol.current == 0)
+	// {
+	// 	bool alldone = false;
+	// 	while(!alldone)
+	// 	{
+	// 		for (int i = 0; i < MAX_THREADS; i++)
+	// 		{
+	// 			if (mycontrol.mythreads[i].status != TS_EXITED)
+	// 				break;
+	// 			if (i == MAX_THREADS - 1)
+	// 				alldone = true;
+	// 		}
+	// 	}
+	// exit(0);
+	// }
 }
 
 pthread_t pthread_self(void)
