@@ -158,12 +158,12 @@ int pthread_create(
 	// printf("%lx\n", *(unsigned long*) ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_RSP]));
 	new_thread.current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
 	new_thread.threadID = mycontrol.t_num;
+	*thread = mycontrol.t_num;
 	// printf("%s, %d\n", "new thread id assigned", new_thread.threadID);
 	new_thread.status = TS_READY;
 	// printf("demangle pc is 0x%081lx\n, %d", ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_R13]), mycontrol.t_num);
 	mycontrol.mythreads[mycontrol.t_num] = new_thread;
 	mycontrol.t_num += 1;
-	
 
 
 	/* TODO: Return 0 on successful thread creation, non-zero for an error.
