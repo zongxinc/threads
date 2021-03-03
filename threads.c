@@ -64,7 +64,8 @@ static void schedule(int signal)
 	if (setjmp(mycontrol.mythreads[mycontrol.current].current_buf) == 0)
 	{
 		// printf("%s, %d\n", "setjmp current thread", mycontrol.current);
-		mycontrol.mythreads[mycontrol.current].status = TS_READY;
+		if ((mycontrol.mythreads[mycontrol.current]).status == TS_RUNNING)
+			mycontrol.mythreads[mycontrol.current].status = TS_READY;
 		mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
 		// printf("%d\n", mycontrol.current);
 		while(mycontrol.mythreads[mycontrol.current].status != TS_READY)
@@ -213,25 +214,28 @@ void pthread_exit(void *value_ptr)
 	// free(mycontrol.mythreads[mycontrol.current].stack);
 	mycontrol.mythreads[mycontrol.current].status = TS_EXITED;
 	// printf("%s\n", "exited!!!!!!");
-	bool next = true;
+	// bool next = true;
 	for (int i = 0; i < MAX_THREADS; i++)
 	{
 		if (mycontrol.mythreads[i].status != TS_EXITED)
 		{
-			next = false;
+			// next = false;
+			schedule(0);
+			printf("%d, ", mycontrol.current);
 			break;
 		}
 	}
-	if (next != 1)
-	{
-		printf("%d%s\n", mycontrol.current, " done");
-		schedule(0);
-	}
-	else
-	{
-		printf("%d, %d\n", next, mycontrol.current);
-		exit(0);
-	}
+	exit(0);
+	// if (next != 1)
+	// {
+	// 	printf("%d%s\n", mycontrol.current, " done");
+	// 	schedule(0);
+	// }
+	// else
+	// {
+	// 	printf("%d, %d\n", next, mycontrol.current);
+	// 	exit(0);
+	// }
 	__builtin_unreachable();
 	// printf("%s\n", "exited!!!!!!");
 	// __builtin_unreachable();

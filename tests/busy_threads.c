@@ -13,7 +13,7 @@
  * use a bigger number. Too slow? Use a smaller number. See the comment about
  * sleeping in count() to avoid this size-tuning issue.
  */
-#define COUNTER_FACTOR 100000000
+#define COUNTER_FACTOR 10000000
 
 /* Waste some time by counting to a big number.
  *
