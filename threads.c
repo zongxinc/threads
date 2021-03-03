@@ -152,7 +152,7 @@ int pthread_create(
 	// printf("%lx\n", exit_add);
 	// *exit_ptr = (unsigned long) pthread_exit;
 	new_thread.current_buf[0].__jmpbuf[JB_PC] = ptr_mangle((unsigned long)start_thunk);
-	new_thread.current_buf[0].__jmpbuf[JB_RSP] = ptr_mangle(((unsigned long)exit_ptr));
+	new_thread.current_buf[0].__jmpbuf[JB_RSP] = ptr_mangle((unsigned long)exit_ptr);
 	new_thread.current_buf[0].__jmpbuf[JB_R12] = (unsigned long)start_routine;
 	// printf("%lx\n", *(unsigned long*) ptr_demangle(new_thread.current_buf[0].__jmpbuf[JB_RSP]));
 	new_thread.current_buf[0].__jmpbuf[JB_R13] = (unsigned long)arg;
@@ -213,18 +213,25 @@ void pthread_exit(void *value_ptr)
 	// free(mycontrol.mythreads[mycontrol.current].stack);
 	mycontrol.mythreads[mycontrol.current].status = TS_EXITED;
 	// printf("%s\n", "exited!!!!!!");
-	bool next = false;
+	bool next = true;
 	for (int i = 0; i < MAX_THREADS; i++)
 	{
 		if (mycontrol.mythreads[i].status != TS_EXITED)
+		{
+			next = false;
 			break;
-		if (i == MAX_THREADS - 1)
-			next = true;
+		}
 	}
-	if (next == false)
+	if (next != 1)
+	{
+		printf("%d%s\n", mycontrol.current, " done");
 		schedule(0);
+	}
 	else
+	{
+		printf("%d, %d\n", next, mycontrol.current);
 		exit(0);
+	}
 	__builtin_unreachable();
 	// printf("%s\n", "exited!!!!!!");
 	// __builtin_unreachable();
