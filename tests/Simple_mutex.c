@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
  for (int i = 0; i < THREAD_CNT; i++) {
   pthread_mutex_lock(&mutex);
   pthread_create(&threads[i], NULL, &trial, (void*)(intptr_t)i);
-  if (i % 2 == 1) pthread_mutex_unlock(&mutex);
+  if (i % 2 == 0) pthread_mutex_unlock(&mutex);
  }
  for (int i = 0; i < 100000000; i++)
  {}

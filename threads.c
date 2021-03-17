@@ -74,7 +74,7 @@ static void schedule(int signal)
 			mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
 
 		}
-		printf("%s, %d\n", "next one ready is ", mycontrol.current);
+		// printf("%s, %d\n", "next one ready is ", mycontrol.current);
 		mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
 		longjmp(mycontrol.mythreads[mycontrol.current].current_buf, 1);
 	}
@@ -315,6 +315,7 @@ struct mymutex
 {
 	enum mutex_status state;
 	int tblock[128];
+	int holder;
 };
 
 
@@ -350,7 +351,9 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
 	struct mymutex* myMutex = (struct mymutex*) (mutex->__align);
 	if (myMutex->state == UNLOCK)
 	{
+		myMutex->holder = mycontrol.current;
 		myMutex->state = LOCK;
+		printf("%d is getting the mutex\n", mycontrol.current);
 	}	
 	else
 	{
@@ -376,9 +379,10 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
 		}
 		else
 		{
-			printf("storing mutex: %d\n", empty);
+			printf("storing mutex: %d at %d\n", mycontrol.current, empty);
 			myMutex->tblock[empty] = mycontrol.current;
 		}
+		schedule(0);
 
 
 	}
@@ -390,21 +394,24 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
 int pthread_mutex_unlock(pthread_mutex_t *mutex)
 {
 	struct mymutex* myMutex = (struct mymutex*) (mutex->__align);
+
 	for (int i = 0; i < 128; i++)
 	{
+		printf("now at %d for %d\n", i, mycontrol.current);
 		if (myMutex->tblock[i] != 130)
 		{
-			
-			if (myMutex->tblock[i] == mycontrol.current)
-			{
-				lock();
-				mycontrol.mythreads[myMutex->tblock[i]].status = TS_READY;
-				unlock();
-				myMutex->tblock[i] = 130;
-			}
+			lock();
+			printf("unblocking %d\n", myMutex->tblock[i]);
+			mycontrol.mythreads[myMutex->tblock[i]].status = TS_READY;
+			unlock();
+			myMutex->tblock[i] = 130;
+			return 0;
+
 
 		}
 	}
+	myMutex->state = UNLOCK;
+	printf("all freed\n");
 	return 0;
 	// The pthread_mutex_unlock() function unlocks a referenced mutex. If another thread is waiting on this mutex, it will be woken up so that it can continue running. Note that when that happens, the woken thread will finish acquiring the lock. Return 0 on success, or an error code otherwise.
 }
