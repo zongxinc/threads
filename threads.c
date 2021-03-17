@@ -432,7 +432,7 @@ unsigned count)
 		return -1;
 	struct mybarrier* myBarrier = (struct mybarrier*) malloc(sizeof(struct mybarrier));
 	myBarrier->count = count;
-	myBarrier->now = 0;
+	myBarrier->now = 1;
 	for (int i = 0; i < 128; i++)
 	{
 		myBarrier->thread_list[i] = 130;
@@ -455,13 +455,16 @@ int pthread_barrier_destroy(pthread_barrier_t *barrier)
 int pthread_barrier_wait(pthread_barrier_t *barrier)
 {
 	struct mybarrier* myBarrier = (struct mybarrier*) (barrier->__align);
+	printf("now have %d, count is %d\n", myBarrier->now, myBarrier->count);
 	if (myBarrier->now < myBarrier->count)
 	{
 		lock();
 		mycontrol.mythreads[mycontrol.current].status = TS_BLOCK;
 		unlock();
 		myBarrier->thread_list[myBarrier->now] = mycontrol.current;
+		printf("storing %d at %d\n", mycontrol.current, myBarrier->now);
 		myBarrier->now++;
+		schedule(0);
 	}
 	else
 	{
@@ -469,6 +472,7 @@ int pthread_barrier_wait(pthread_barrier_t *barrier)
 		{
 			if (myBarrier->thread_list[i] != 130)
 			{
+				printf("free %d at %d\n", myBarrier->thread_list[i], i);
 				lock();
 				mycontrol.mythreads[myBarrier->thread_list[i]].status = TS_READY;
 				unlock();
