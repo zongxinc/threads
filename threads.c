@@ -37,7 +37,8 @@ enum thread_status
 {
 	TS_EXITED,
 	TS_RUNNING,
-	TS_READY
+	TS_READY,
+	TS_BLOCK
 };
 
 /* The thread control block stores information about a thread. You will
@@ -73,7 +74,7 @@ static void schedule(int signal)
 			mycontrol.current = (mycontrol.current + 1) % MAX_THREADS;
 
 		}
-		// printf("%s, %d\n", "next one ready is ", mycontrol.current);
+		printf("%s, %d\n", "next one ready is ", mycontrol.current);
 		mycontrol.mythreads[mycontrol.current].status = TS_RUNNING;
 		longjmp(mycontrol.mythreads[mycontrol.current].current_buf, 1);
 	}
@@ -288,3 +289,190 @@ pthread_t pthread_self(void)
  * want to run the functions in this file, create separate test programs
  * that have their own main functions.
  */
+enum mutex_status
+{
+	LOCK,
+	UNLOCK
+};
+// Your lock function should disable the timer that calls your schedule routine, and unlock should re-enable the timer. You can use the sigprocmask function to this end (one function using SIG_BLOCK, the other using SIG_UNBLOCK, with a mask on your alarm signal). Use these functions to prevent your scheduler from running when your threading library is internally in a critical section (users of your library will use barriers and mutexes for critical sections that are external to your library).
+// prevent race cases in threading 
+static void lock()
+{
+	sigset_t block; 
+	sigemptyset(&block);
+    sigaddset(&block, SIGALRM);
+    sigprocmask(SIG_BLOCK, &block, NULL);
+}
+
+static void unlock()
+{
+	sigset_t block; 
+	sigemptyset(&block);
+    sigaddset(&block, SIGALRM);
+    sigprocmask(SIG_UNBLOCK, &block, NULL);
+}
+struct mymutex
+{
+	enum mutex_status state;
+	int tblock[128];
+};
+
+
+int pthread_mutex_init(
+	pthread_mutex_t *restrict mutex,
+	const pthread_mutexattr_t *restrict attr)
+{
+	// The pthread_mutex_init() function initializes a given mutex. The attr argument is unused in this assignment (we will always test it with NULL). Behavior is undefined when an already-initialized mutex is re-initialized. Always return 0.
+	// mutex = PTHREAD_MUTEX_INITIALIZER;
+	struct mymutex* myMutex = (struct mymutex*) malloc(sizeof(struct mymutex));
+	myMutex->state = UNLOCK;
+	for (int i = 0; i < 128; i++)
+	{
+		myMutex->tblock[i] = 130;
+	}
+	mutex->__align = (long) myMutex;
+
+	return 0;
+}
+
+int pthread_mutex_destroy(
+	pthread_mutex_t *mutex)
+{
+	// struct mymutex* myMutex = (struct mymutex*) (mutex->__align);
+
+	free((void *) mutex->__align);
+	return 0;
+	// The pthread_mutex_destroy() function destroys the referenced mutex. Behavior is undefined when a mutex is destroyed while a thread is currently blocked on, or when destroying a mutex that has not been initialized. Behavior is undefined when locking or unlocking a destroyed mutex, unless it has been re-initialized by pthread_mutex_init. Return 0 on success.
+}
+
+int pthread_mutex_lock(pthread_mutex_t *mutex)
+{
+	struct mymutex* myMutex = (struct mymutex*) (mutex->__align);
+	if (myMutex->state == UNLOCK)
+	{
+		myMutex->state = LOCK;
+	}	
+	else
+	{
+		lock();
+		mycontrol.mythreads[mycontrol.current].status = TS_BLOCK;
+		printf("blocking %d\n", mycontrol.current);
+		unlock();
+		int empty = 0;
+		bool find = 0;
+		for (int i = 0; i < 128; i++)
+		{
+			if (myMutex->tblock[i] == 130)
+			{
+				empty = i;
+				find = 1;
+				break;
+			}
+
+		}			
+		if (find == 0)
+		{
+			printf("%s\n", "tblock too small");
+		}
+		else
+		{
+			printf("storing mutex: %d\n", empty);
+			myMutex->tblock[empty] = mycontrol.current;
+		}
+
+
+	}
+	// The pthread_mutex_lock() function locks a referenced mutex. If the mutex is not already locked, the current thread acquires the lock and proceeds. If the mutex is already locked, the thread blocks until the mutex is available. If multiple threads are waiting on a mutex, the order that they are awoken is undefined. Return 0 on success, or an error code otherwise.
+	// 
+	return 0;
+}
+
+int pthread_mutex_unlock(pthread_mutex_t *mutex)
+{
+	struct mymutex* myMutex = (struct mymutex*) (mutex->__align);
+	for (int i = 0; i < 128; i++)
+	{
+		if (myMutex->tblock[i] != 130)
+		{
+			
+			if (myMutex->tblock[i] == mycontrol.current)
+			{
+				lock();
+				mycontrol.mythreads[myMutex->tblock[i]].status = TS_READY;
+				unlock();
+				myMutex->tblock[i] = 130;
+			}
+
+		}
+	}
+	return 0;
+	// The pthread_mutex_unlock() function unlocks a referenced mutex. If another thread is waiting on this mutex, it will be woken up so that it can continue running. Note that when that happens, the woken thread will finish acquiring the lock. Return 0 on success, or an error code otherwise.
+}
+
+struct mybarrier
+{
+	unsigned count;
+	unsigned now;
+	int thread_list[128];
+};
+
+int pthread_barrier_init(
+pthread_barrier_t *restrict barrier,
+const pthread_barrierattr_t *restrict attr,
+unsigned count)
+{
+	if (count == 0)
+		return -1;
+	struct mybarrier* myBarrier = (struct mybarrier*) malloc(sizeof(struct mybarrier));
+	myBarrier->count = count;
+	myBarrier->now = 0;
+	for (int i = 0; i < 128; i++)
+	{
+		myBarrier->thread_list[i] = 130;
+	}
+	// memcpy(barrier, myBarrier, sizeof(mybarrier));
+	barrier->__align = (long) myBarrier;
+
+	return 0;
+	// The pthread_barrier_init() function initializes a given barrier. The attr argument is unused in this assignment (we will always test it with NULL). The count argument specifies how many threads must enter the barrier before any threads can exit the barrier. Return 0 on success. It is an error if count is equal to zero (return EINVAL). Behavior is undefined when an already-initialized barrier is re-initialized.
+}
+
+int pthread_barrier_destroy(pthread_barrier_t *barrier)
+{
+	// struct mybarrier* myBarrier = (struct mybarrier*) (barrier->__align);
+	free((void *) barrier->__align);
+	return 0;
+	// The pthread_barrier_destroy() function destroys the referenced barrier. Behavior is undefined when a barrier is destroyed while a thread is waiting in the barrier or when destroying a barrier that has not been initialized. Behavior is undefined when attempting to wait in a destroyed barrier, unless it has been re-initialized by pthread_barrier_init. Return 0 on success.
+}
+
+int pthread_barrier_wait(pthread_barrier_t *barrier)
+{
+	struct mybarrier* myBarrier = (struct mybarrier*) (barrier->__align);
+	if (myBarrier->now < myBarrier->count)
+	{
+		lock();
+		mycontrol.mythreads[mycontrol.current].status = TS_BLOCK;
+		unlock();
+		myBarrier->thread_list[myBarrier->now] = mycontrol.current;
+		myBarrier->now++;
+	}
+	else
+	{
+		for (int i = 0; i < 128; i++)
+		{
+			if (myBarrier->thread_list[i] != 130)
+			{
+				lock();
+				mycontrol.mythreads[myBarrier->thread_list[i]].status = TS_READY;
+				unlock();
+				myBarrier->thread_list[i] = 130;
+				myBarrier->now--;
+			}
+		}
+	}
+	return 0;
+	// The pthread_barrier_wait() function enters the referenced barrier. The calling thread shall not proceed until the required number of threads (from count in pthread_barrier_init) have already entered the barrier. Other threads shall be allowed to proceed while this thread is in a barrier (unless they are also blocked for other reasons). Upon exiting a barrier, the order that the threads are awoken is undefined. Exactly one of the returned threads shall return PTHREAD_BARRIER_SERIAL_THREAD (it does not matter which one). The rest of the threads shall return 0.
+}
+
+
+
