@@ -432,7 +432,7 @@ unsigned count)
 		return -1;
 	struct mybarrier* myBarrier = (struct mybarrier*) malloc(sizeof(struct mybarrier));
 	myBarrier->count = count;
-	myBarrier->now = 1;
+	myBarrier->now = 0;
 	for (int i = 0; i < 128; i++)
 	{
 		myBarrier->thread_list[i] = 130;
@@ -481,6 +481,8 @@ int pthread_barrier_wait(pthread_barrier_t *barrier)
 			}
 		}
 	}
+	// if (mycontrol.current == 0)
+	// 	return PTHREAD_BARRIER_SERIAL_THREAD;
 	return 0;
 	// The pthread_barrier_wait() function enters the referenced barrier. The calling thread shall not proceed until the required number of threads (from count in pthread_barrier_init) have already entered the barrier. Other threads shall be allowed to proceed while this thread is in a barrier (unless they are also blocked for other reasons). Upon exiting a barrier, the order that the threads are awoken is undefined. Exactly one of the returned threads shall return PTHREAD_BARRIER_SERIAL_THREAD (it does not matter which one). The rest of the threads shall return 0.
 }
