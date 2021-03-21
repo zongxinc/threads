@@ -432,7 +432,7 @@ unsigned count)
 		return -1;
 	struct mybarrier* myBarrier = (struct mybarrier*) malloc(sizeof(struct mybarrier));
 	myBarrier->count = count;
-	myBarrier->now = 0;
+	myBarrier->now = 1;
 	for (int i = 0; i < 128; i++)
 	{
 		myBarrier->thread_list[i] = 130;
